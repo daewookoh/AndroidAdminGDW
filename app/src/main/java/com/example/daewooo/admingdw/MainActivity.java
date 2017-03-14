@@ -4,9 +4,11 @@ import android.annotation.TargetApi;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.net.ConnectivityManager;
@@ -17,6 +19,8 @@ import android.os.Bundle;
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.preference.PreferenceManager;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.widget.DrawerLayout;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -62,6 +66,13 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
     boolean isDataSet;
     TextView textViewMemberName;
 
+    private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
+    private static final String TAG = "MainActivity";
+
+    private BroadcastReceiver mRegistrationBroadcastReceiver;
+    private boolean isReceiverRegistered;
+
+
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,6 +97,8 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
         year = calendar.get(Calendar.YEAR);
         month = calendar.get(Calendar.MONTH);
         day= calendar.get(Calendar.DAY_OF_MONTH);
+
+
 
         // 초기실행시 기본설정값
         gocScheduleBtnClicked(dView); // 옹달샘 일정실행
@@ -211,9 +224,6 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
 
 
         SharedPreferences sp_login = getSharedPreferences("login_data", MODE_PRIVATE);
-        //SharedPreferences.Editor editor_login = sp_login.edit();
-        //editor_login.putString("gdw_mem_no","1");
-        //editor_login.commit();
         gdw_mem_no = sp_login.getString("gdw_mem_no","");
         goc_mem_no = sp_login.getString("goc_mem_no","");
 
@@ -401,6 +411,22 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
                     editor_login.putString("goc_mem_no", goc_mem_no);
                     editor_login.commit();
 
+                    mRegistrationBroadcastReceiver = new BroadcastReceiver() {
+                        @Override
+                        public void onReceive(Context context, Intent intent) {
+                            SharedPreferences sharedPreferences =
+                                    PreferenceManager.getDefaultSharedPreferences(context);
+                            boolean sentToken = sharedPreferences
+                                    .getBoolean(QuickstartPreferences.SENT_TOKEN_TO_SERVER, false);
+
+                        }
+                    };
+
+                    //Registering BroadcastReceiver
+                    registerReceiver();
+                    registerToken();
+
+
                     //gocScheduleBtnClicked(dView);
                     rebootApp();
                 }
@@ -410,10 +436,20 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
             }
 
         }
-
-
     }
 
+    private void registerToken()
+    {
+        Intent intent = new Intent(this, RegistrationIntentService.class);
+        startService(intent);
+    }
+    private void registerReceiver(){
+        if(!isReceiverRegistered) {
+            LocalBroadcastManager.getInstance(this).registerReceiver(mRegistrationBroadcastReceiver,
+                    new IntentFilter(QuickstartPreferences.REGISTRATION_COMPLETE));
+            isReceiverRegistered = true;
+        }
+    }
 
     public static String GET(String url){
         InputStream inputStream = null;
