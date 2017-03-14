@@ -7,9 +7,11 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.net.ConnectivityManager;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.app.Activity;
@@ -22,9 +24,27 @@ import android.view.View;
 import android.view.Window;
 import android.webkit.WebView;
 import android.widget.DatePicker;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -40,10 +60,13 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
     int day;
     boolean datePickerDialog_visible;
     boolean isDataSet;
+    TextView textViewMemberName;
 
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+
         getWindow().requestFeature(Window.FEATURE_PROGRESS); // 웹로딩 프로그레스바
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -51,6 +74,13 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
 
         dLayout = (DrawerLayout) findViewById(R.id.drawer_layout); // 슬라이딩메뉴 총괄
         dView = findViewById(R.id.left_drawer); // 슬라이딩메뉴 화면
+
+        // 사용자 이름세팅
+        SharedPreferences sp_login = getSharedPreferences("login_data", MODE_PRIVATE);
+        String member_name = sp_login.getString("member_name","");
+        textViewMemberName = (TextView) findViewById(R.id.member_name);
+        textViewMemberName.setText(member_name);
+
 
         GregorianCalendar calendar = new GregorianCalendar();
         year = calendar.get(Calendar.YEAR);
@@ -176,6 +206,16 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
     public void replaceFragment(String title, String layout, String url){
         String sUrl;
         String encrypted = null;
+        String gdw_mem_no;
+        String goc_mem_no;
+
+
+        SharedPreferences sp_login = getSharedPreferences("login_data", MODE_PRIVATE);
+        //SharedPreferences.Editor editor_login = sp_login.edit();
+        //editor_login.putString("gdw_mem_no","1");
+        //editor_login.commit();
+        gdw_mem_no = sp_login.getString("gdw_mem_no","");
+        goc_mem_no = sp_login.getString("goc_mem_no","");
 
         // 네트워크 연결이 안되어 있으면 sUrl 값을 비워서 넘긴다.
         if(isNetWorkAvailable() == false) {
@@ -194,10 +234,16 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
 
             //보안키 적용할경우
             //sUrl = "http://www.godowon.com/m/surl.gdw?url=" + encodeUrl + "&gdw_mem_no=" + getString(R.string.gdw_mem_no) + "&goc_mem_no=" + getString(R.string.goc_mem_no) + "&enc_key=" + encrypted;
-            sUrl = "http://www.godowon.com/m/surl.gdw?url=" + encodeUrl + "&gdw_mem_no=" + getString(R.string.gdw_mem_no) + "&goc_mem_no=" + getString(R.string.goc_mem_no);
+            sUrl = "http://www.godowon.com/m/surl.gdw?url=" + encodeUrl + "&gdw_mem_no=" + gdw_mem_no + "&goc_mem_no=" + goc_mem_no;
         }
 
-        if(layout == "web_page") {
+        if(gdw_mem_no.isEmpty() || goc_mem_no.isEmpty()) {
+            Fragment detail = new LoginFragment();
+            FragmentManager fragmentManager = getFragmentManager();
+            fragmentManager.beginTransaction().replace(R.id.content_frame, detail).commit();
+        }
+        else if(layout == "web_page") {
+
             Bundle args = new Bundle();
             args.putString("Title", title);
             args.putString("Layout", layout);
@@ -206,6 +252,7 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
             detail.setArguments(args);
             FragmentManager fragmentManager = getFragmentManager();
             fragmentManager.beginTransaction().replace(R.id.content_frame, detail).commit();
+
         }
         else if(layout == "os_web_page") {
             Intent i = new Intent(Intent.ACTION_VIEW);
@@ -298,6 +345,123 @@ public class MainActivity extends Activity implements WebViewFragment.UiListener
         String title = getResources().getString(R.string.kor_goc_home);
         replaceFragment(title, "web_page", "http://www.godowoncenter.com");
         dLayout.closeDrawer(dView);
+    }
+
+    public void loginBtnClicked(View view) {
+
+        if(isNetWorkAvailable() == false) {
+            Toast.makeText(this, "네트워크 연결을 확인해주세요.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        EditText inputName = (EditText)findViewById(R.id.inputName);
+        String name = inputName.getText().toString();
+
+        String sUrl = "http://www.godowon.com/m/check_admin_member_no.gdw?member_name=" + name;
+        new HttpAsyncTask().execute(sUrl);
+
+
+        //Log.d("FFF", sUrl);
+        //String title = getResources().getString(R.string.kor_email);
+        //replaceFragment(title, "os_web_page", "http://www.godowon.com/admingdw/index.gdw?redirect=mail");
+        //dLayout.closeDrawer(dView);
+    }
+
+    private class HttpAsyncTask extends AsyncTask<String, Void, String> {
+        @Override
+        protected String doInBackground(String... urls) {
+
+            return GET(urls[0]);
+        }
+
+        // onPostExecute displays the results of the AsyncTask.
+        @Override
+        protected void onPostExecute(String result) {
+
+            try {
+                result = URLDecoder.decode(result, "utf-8");
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+
+            try {
+                JSONObject jObject = new JSONObject(result);
+                String msg = jObject.getString("msg");
+                String member_name = jObject.getString("member_name");
+                String gdw_mem_no = jObject.getString("gdw_mem_no");
+                String goc_mem_no = jObject.getString("goc_mem_no");
+                Toast.makeText(getBaseContext(), msg, Toast.LENGTH_LONG).show();
+
+                if(msg.equals("SUCCESS"))
+                {
+                    SharedPreferences sp_login = getSharedPreferences("login_data", MODE_PRIVATE);
+                    SharedPreferences.Editor editor_login = sp_login.edit();
+                    editor_login.putString("member_name",member_name);
+                    editor_login.putString("gdw_mem_no", gdw_mem_no);
+                    editor_login.putString("goc_mem_no", goc_mem_no);
+                    editor_login.commit();
+
+                    //gocScheduleBtnClicked(dView);
+                    rebootApp();
+                }
+
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+        }
+
+
+    }
+
+
+    public static String GET(String url){
+        InputStream inputStream = null;
+        String result = "";
+        try {
+
+            // create HttpClient
+            HttpClient httpclient = new DefaultHttpClient();
+
+            // make GET request to the given URL
+            HttpResponse httpResponse = httpclient.execute(new HttpGet(url));
+
+            // receive response as inputStream
+            inputStream = httpResponse.getEntity().getContent();
+
+            // convert inputstream to string
+            if(inputStream != null)
+                result = convertInputStreamToString(inputStream);
+            else
+                result = "Did not work!";
+
+        } catch (Exception e) {
+            Log.d("InputStream", e.getLocalizedMessage());
+        }
+
+        return result;
+    }
+
+    private static String convertInputStreamToString(InputStream inputStream) throws IOException {
+        BufferedReader bufferedReader = new BufferedReader( new InputStreamReader(inputStream));
+        String line = "";
+        String result = "";
+        while((line = bufferedReader.readLine()) != null)
+            result += line;
+
+        inputStream.close();
+        return result;
+
+    }
+
+    public void rebootApp() {
+        Intent intent = getIntent();
+        overridePendingTransition(0, 0);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        finish();
+
+        overridePendingTransition(0, 0);
+        startActivity(intent);
     }
 
     // 네트워크 연결상태 확인

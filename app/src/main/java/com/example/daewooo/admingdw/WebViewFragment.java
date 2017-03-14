@@ -2,34 +2,22 @@ package com.example.daewooo.admingdw;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.Fragment;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.widget.SwipeRefreshLayout;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 @TargetApi(Build.VERSION_CODES.HONEYCOMB)
 public class WebViewFragment extends Fragment implements SwipeRefreshLayout.OnRefreshListener{
@@ -83,7 +71,6 @@ public class WebViewFragment extends Fragment implements SwipeRefreshLayout.OnRe
         refreshLayout.setOnRefreshListener(this);
         refreshLayout.setColorScheme(R.color.color1);
         refreshLayout.setEnabled(false);  // 기능 사용/사용안함
-
 
         // 기본 설정
         menuBtn = (ImageButton) view.findViewById(R.id.mainpage_topLeftMenuBtn);
@@ -151,8 +138,7 @@ public class WebViewFragment extends Fragment implements SwipeRefreshLayout.OnRe
                         result.confirm();
                         uiCallback.openDatePicker(webView);
                         return true;
-                    }
-                    else {
+                    } else {
                         return false;
                     }
                 }
